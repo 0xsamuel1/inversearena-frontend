@@ -25,13 +25,18 @@ function makeRes(): { json: (body: unknown) => void; captured: unknown } {
 }
 
 describe("LeaderboardController — divergent elimination set (#1346)", () => {
-  afterEach(async () => {
+  const cleanRelationalFixtures = async () => {
     if (!hasDb()) return;
     await prisma.eliminationLog.deleteMany();
     await prisma.round.deleteMany();
+    await prisma.pool.deleteMany();
     await prisma.arena.deleteMany();
+    await prisma.transaction.deleteMany();
     await prisma.user.deleteMany();
-  });
+  };
+
+  beforeEach(cleanRelationalFixtures);
+  afterEach(cleanRelationalFixtures);
 
   it("credits arenasWon when an extra elimination is on a non-RESOLVED round", async () => {
     if (!hasDb()) return;
