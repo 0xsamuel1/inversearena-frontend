@@ -78,7 +78,7 @@ describe("cacheMiddleware (#1213)", () => {
 
   it("serves a cache hit without calling the route handler", async () => {
     get.mockResolvedValueOnce(JSON.stringify({ cached: true }));
-    const handler = jest.fn((_req, res) => res.json({ cached: false }));
+    const handler = jest.fn((_req: unknown, res: any) => res.json({ cached: false }));
     const response = await request(buildApp(handler)).get("/thing");
 
     expect(response.status).toBe(200);

@@ -11,15 +11,15 @@ const originalPool = prisma.pool;
 
 describe("POST /api/pools (#1224)", () => {
   afterEach(() => {
-    prisma.arena = originalArena;
-    prisma.pool = originalPool;
+    (prisma as any).arena = originalArena;
+    (prisma as any).pool = originalPool;
     clearLimiterCache();
   });
 
   it("returns ARENA_NOT_FOUND without attempting an insert", async () => {
     const create = jest.fn();
-    prisma.arena = { findUnique: jest.fn(async () => null) } as never;
-    prisma.pool = { create } as never;
+    (prisma as any).arena = { findUnique: jest.fn(async () => null) };
+    (prisma as any).pool = { create };
 
     const app = express();
     app.use(express.json());
@@ -42,8 +42,8 @@ describe("POST /api/pools (#1224)", () => {
 
   it("creates a pool after confirming the arena exists", async () => {
     const pool = { id: "pool-1", arenaId: ARENA_ID, stakeAmount: 25 };
-    prisma.arena = { findUnique: jest.fn(async () => ({ id: ARENA_ID })) } as never;
-    prisma.pool = { create: jest.fn(async () => pool) } as never;
+    (prisma as any).arena = { findUnique: jest.fn(async () => ({ id: ARENA_ID })) };
+    (prisma as any).pool = { create: jest.fn(async () => pool) };
 
     const app = express();
     app.use(express.json());

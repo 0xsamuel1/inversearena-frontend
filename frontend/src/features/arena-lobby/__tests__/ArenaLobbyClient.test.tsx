@@ -203,6 +203,17 @@ describe("ArenaLobbyClient join flow", () => {
       joinDeadline: new Date(Date.now() - 60_000).toISOString(),
     };
 
+    // Keep the component's immediate refresh consistent with the initial
+    // snapshot; the suite default otherwise replaces it with future-dated STATS.
+    (global.fetch as jest.Mock).mockImplementation((url: string) => {
+      if (url.includes("/participants")) {
+        return Promise.resolve(
+          mockFetchOnce({ arenaId: "arena-1", total: 0, nextCursor: null, hasMore: false, items: [] }),
+        );
+      }
+      return Promise.resolve(mockFetchOnce(pastDeadlineStats));
+    });
+
     render(
       <ArenaLobbyClient
         arenaId="arena-1"

@@ -16,6 +16,10 @@ module.exports = {
     "<rootDir>/tests/arenaService\\.deployment\\.unit\\.test\\.ts",
     "<rootDir>/tests/worker\\.route\\.unit\\.test\\.ts",
     "<rootDir>/tests/paymentWorker\\.test\\.ts",
+    "<rootDir>/tests/adminReindexPool\\.unit\\.test\\.ts",
+    "<rootDir>/tests/leaderboardPagination\\.unit\\.test\\.ts",
+    "<rootDir>/tests/payoutIdUniqueness\\.unit\\.test\\.ts",
+    "<rootDir>/tests/syncPlayersAuth\\.unit\\.test\\.ts",
     // Legacy script-style runners (no Jest `describe`/`it`)
     "<rootDir>/tests/leaderboard\\.test\\.ts",
     "<rootDir>/tests/security-headers\\.test\\.ts",

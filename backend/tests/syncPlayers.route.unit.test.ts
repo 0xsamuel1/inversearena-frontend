@@ -20,7 +20,12 @@ import { redis } from "../src/cache/redisClient";
 import { getOnChainPlayers } from "../src/services/onChainReader";
 
 const mockGetOnChainPlayers = getOnChainPlayers as jest.MockedFunction<typeof getOnChainPlayers>;
-const authMiddleware = (_req: any, _res: any, next: any) => next();
+const OWNER = "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H";
+process.env.RATE_LIMIT_SYNC_PLAYERS_POINTS = "1000";
+const authMiddleware = (req: any, _res: any, next: any) => {
+  req.user = { id: "owner-user", walletAddress: OWNER, jti: "test-jti" };
+  next();
+};
 
 const originalArena = prisma.arena;
 const originalUser = prisma.user;
@@ -38,7 +43,7 @@ afterAll(() => {
 describe("POST /api/arenas/:id/sync-players (#1218)", () => {
   it("batches all on-chain players into a single createMany call instead of N sequential upserts", async () => {
     (prisma as any).arena = {
-      findUnique: async () => ({ id: "arena-1", metadata: { contractAddress: "C123" } }),
+      findUnique: async () => ({ id: "arena-1", metadata: { contractAddress: "C123", createdBy: OWNER } }),
     } as any;
 
     let createManyCalls = 0;
@@ -80,7 +85,7 @@ describe("POST /api/arenas/:id/sync-players (#1218)", () => {
 
   it("handles an empty on-chain player list without erroring", async () => {
     (prisma as any).arena = {
-      findUnique: async () => ({ id: "arena-1", metadata: { contractAddress: "C123" } }),
+      findUnique: async () => ({ id: "arena-1", metadata: { contractAddress: "C123", createdBy: OWNER } }),
     } as any;
 
     let createManyCalls = 0;
@@ -108,7 +113,7 @@ describe("POST /api/arenas/:id/sync-players (#1218)", () => {
 
   it("skips existing wallet addresses without erroring (skipDuplicates semantics)", async () => {
     (prisma as any).arena = {
-      findUnique: async () => ({ id: "arena-1", metadata: { contractAddress: "C123" } }),
+      findUnique: async () => ({ id: "arena-1", metadata: { contractAddress: "C123", createdBy: OWNER } }),
     } as any;
 
     (prisma as any).user = {
@@ -135,7 +140,7 @@ describe("POST /api/arenas/:id/sync-players (#1218)", () => {
 
   it("returns 400 when the arena has no contract address", async () => {
     (prisma as any).arena = {
-      findUnique: async () => ({ id: "arena-1", metadata: {} }),
+      findUnique: async () => ({ id: "arena-1", metadata: { createdBy: OWNER } }),
     } as any;
 
     const app = express();

@@ -11,6 +11,7 @@ import {
 } from "../stellar-transactions";
 import { loadCommitment } from "../commit-reveal";
 import { ContractError, ContractErrorCode } from "@/shared-d/utils/contract-error";
+import { Keypair } from "@stellar/stellar-sdk";
 
 const PUBLIC_KEY = "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H";
 const POOL_ID = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
@@ -107,7 +108,7 @@ describe("clearCommitmentForRound / hasStoredCommitmentForRound", () => {
 
   it("multiple wallets on the same device can independently commit/reveal for the same arena/round (#1331)", async () => {
     const WALLET_1 = "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H";
-    const WALLET_2 = "GDQERENWDDSQZS7R7WKHZI3BSOYMV3U3YDDJE2LWTFHZHHRVNBSMH6JK";
+    const WALLET_2 = Keypair.random().publicKey();
 
     // Wallet 1 commits Heads
     await buildSubmitCommitmentTransaction(WALLET_1, POOL_ID, "Heads", 3);

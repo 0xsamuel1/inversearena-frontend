@@ -4,7 +4,9 @@ import { PoolCreationModal } from "../PoolCreationModal";
 import { useWallet } from "@/features/wallet/useWallet";
 import { buildCreatePoolTransaction, submitSignedTransaction } from "@/shared-d/utils/stellar-transactions";
 
-jest.mock("@/features/wallet/useWallet");
+jest.mock("@/features/wallet/useWallet", () => ({
+  useWallet: jest.fn(),
+}));
 jest.mock("@/shared-d/utils/stellar-transactions", () => ({
   buildCreatePoolTransaction: jest.fn(),
   submitSignedTransaction: jest.fn(),
