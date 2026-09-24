@@ -17,6 +17,7 @@ import { Announcements } from "@/features/dashboard-home/components/Announcement
 import { MetricsPanel } from "@/features/dashboard-home/components/MetricsPanel";
 import { PoolCreationModal } from "@/components/modals/PoolCreationModal";
 import StakeModal from "@/components/modals/StakeModal";
+import { PayoutTimeline } from "@/app/dashboard/payouts/PayoutTimeline";
 import { GlobalTelemetryBar } from "@/app/dashboard/telemetry-bar/page";
 
 import {
@@ -42,10 +43,12 @@ function DashboardHomeView() {
   const [isStakeModalOpen, setIsStakeModalOpen] = useState(false);
   const [isPoolModalOpen, setIsPoolModalOpen] = useState(false);
   const [hasStaked, setHasStaked] = useState(false);
+  const [timelineTransactionId, setTimelineTransactionId] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = typeof window !== "undefined" && localStorage.getItem(HAS_STAKED_KEY);
     setHasStaked(stored === "true");
+    setTimelineTransactionId(new URLSearchParams(window.location.search).get("payoutTransactionId"));
   }, []);
 
   const handleCreateArenaClick = () => {
@@ -94,6 +97,7 @@ function DashboardHomeView() {
       </div>
 
       <GlobalIntelTicker items={globalIntelItems} />
+      {timelineTransactionId && <PayoutTimeline transactionId={timelineTransactionId} />}
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         <RecentGames games={recentGames} />

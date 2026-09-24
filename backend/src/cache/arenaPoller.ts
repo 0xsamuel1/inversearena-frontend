@@ -12,9 +12,9 @@ import { getSorobanBreaker } from "../utils/circuitBreaker";
 
 interface Subscriber {
   /** Send an SSE event to this client. */
-  sendEvent: (event: string, payload: unknown) => void;
+  sendEvent: (event: string, payload: unknown, id?: number) => void;
   /** Send raw SSE data (for snapshots). */
-  sendSnapshot: (data: unknown) => void;
+  sendSnapshot: (data: unknown, id?: number) => void;
   /** Called when the subscriber disconnects or the arena is cleaned up. */
   onCleanup?: () => void;
 }
@@ -29,6 +29,8 @@ interface ArenaPollerState {
   lastSurvivorCount: number | null;
   seenEliminations: Set<string>;
   sequence: number;
+  history: Array<{ event: string; payload: unknown; sequence: number }>;
+  lastSnapshot: { payload: unknown; sequence: number } | null;
   consecutiveFailures: number;
 }
 
@@ -63,6 +65,7 @@ export function subscribeArena(
   arenaId: string,
   subscriber: Subscriber,
   arenaService: ArenaService,
+  afterSequence?: number,
 ): () => void {
   let state = pollers.get(arenaId);
 
@@ -76,12 +79,24 @@ export function subscribeArena(
       lastSurvivorCount: null,
       seenEliminations: new Set(),
       sequence: 0,
+      history: [],
+      lastSnapshot: null,
       consecutiveFailures: 0,
     };
     pollers.set(arenaId, state);
   }
 
   state.subscribers.add(subscriber);
+
+  if (state.lastSnapshot) {
+    const replay = afterSequence === undefined ? [] : state.history.filter((item) => item.sequence > afterSequence);
+    if (afterSequence !== undefined && replay.length > 0) {
+      replay.forEach((item) => subscriber.sendEvent(item.event, item.payload, item.sequence));
+      console.info(JSON.stringify({ event: "arena_stream_replay_success", arenaId, afterSequence, replayed: replay.length }));
+    } else if (afterSequence === undefined || afterSequence !== state.sequence) {
+      subscriber.sendSnapshot(state.lastSnapshot.payload, state.lastSnapshot.sequence);
+    }
+  }
 
   // If this is the first subscriber, start the poll loop
   if (state.subscribers.size === 1) {
@@ -96,7 +111,7 @@ export function subscribeArena(
     // If no more subscribers, stop the poll loop
     if (state!.subscribers.size === 0) {
       stopPollLoop(state!);
-      pollers.delete(arenaId);
+      console.info(JSON.stringify({ event: "arena_stream_idle", arenaId }));
     }
   };
 }
@@ -135,78 +150,48 @@ function startPollLoop(
         state.lastSurvivorCount = snapshot.survivorCount;
         snapshot.recentEliminations.forEach((entry) => state!.seenEliminations.add(entry.id));
 
+        const snapshotEvent = {
+          type: "snapshot",
+          sequence: ++state.sequence,
+          arenaId,
+          payload: snapshot,
+          createdAt: new Date().toISOString(),
+        };
+        state.lastSnapshot = { payload: snapshotEvent, sequence: snapshotEvent.sequence };
+        state.history.push({ event: "snapshot", payload: snapshotEvent, sequence: snapshotEvent.sequence });
         for (const sub of state.subscribers) {
           try {
-            sub.sendSnapshot({
-              type: "snapshot",
-              sequence: ++state.sequence,
-              arenaId,
-              payload: snapshot,
-              createdAt: new Date().toISOString(),
-            });
+            sub.sendSnapshot(snapshotEvent, snapshotEvent.sequence);
           } catch {
             // Client disconnected
           }
         }
       } else {
-        // Subsequent polls: detect changes and broadcast events
-        for (const sub of state.subscribers) {
-          try {
-            // Send new eliminations
-            for (const elimination of snapshot.recentEliminations) {
-              if (state.seenEliminations.has(elimination.id)) continue;
-              state.seenEliminations.add(elimination.id);
-              sub.sendEvent("player_eliminated", {
-                type: "player_eliminated",
-                sequence: ++state.sequence,
-                arenaId,
-                payload: elimination,
-                createdAt: new Date().toISOString(),
-              });
-            }
-
-            // Send round_resolved
-            if (
-              snapshot.lastRoundState === "RESOLVED" &&
-              state.lastRoundState !== "RESOLVED"
-            ) {
-              sub.sendEvent("round_resolved", {
-                type: "round_resolved",
-                sequence: ++state.sequence,
-                arenaId,
-                payload: {
-                  arenaId: snapshot.arenaId,
-                  roundNumber: snapshot.currentRound,
-                  playerCount: snapshot.playerCount,
-                  survivorCount: snapshot.survivorCount,
-                  status: snapshot.status,
-                },
-                createdAt: new Date().toISOString(),
-              });
-            }
-
-            // Send game_finished
-            const isTerminal =
-              snapshot.status === "settled" || snapshot.survivorCount <= 1;
-            const wasTerminal =
-              state.lastStatus === "settled" ||
-              (state.lastSurvivorCount !== null && state.lastSurvivorCount <= 1);
-            if (isTerminal && !wasTerminal) {
-              sub.sendEvent("game_finished", {
-                type: "game_finished",
-                sequence: ++state.sequence,
-                arenaId,
-                payload: {
-                  arenaId: snapshot.arenaId,
-                  roundNumber: snapshot.currentRound,
-                  survivorCount: snapshot.survivorCount,
-                  status: snapshot.status,
-                },
-                createdAt: new Date().toISOString(),
-              });
-            }
-          } catch {
-            // Client disconnected — will be cleaned up
+        // Subsequent polls: create each event once, then fan out the same cursor.
+        const pending: Array<{ event: string; payload: { type: string; sequence: number; arenaId: string; payload: unknown; createdAt: string } }> = [];
+        const enqueue = (event: string, payload: unknown): void => {
+          const envelope = { type: event, sequence: ++state.sequence, arenaId, payload, createdAt: new Date().toISOString() };
+          pending.push({ event, payload: envelope });
+          state.history.push({ event, payload: envelope, sequence: envelope.sequence });
+          if (state.history.length > 512) state.history.splice(0, state.history.length - 512);
+        };
+        for (const elimination of snapshot.recentEliminations) {
+          if (!state.seenEliminations.has(elimination.id)) {
+            state.seenEliminations.add(elimination.id);
+            enqueue("player_eliminated", elimination);
+          }
+        }
+        if (snapshot.lastRoundState === "RESOLVED" && state.lastRoundState !== "RESOLVED") {
+          enqueue("round_resolved", { arenaId: snapshot.arenaId, roundNumber: snapshot.currentRound, playerCount: snapshot.playerCount, survivorCount: snapshot.survivorCount, status: snapshot.status });
+        }
+        const isTerminal = snapshot.status === "settled" || snapshot.survivorCount <= 1;
+        const wasTerminal = state.lastStatus === "settled" || (state.lastSurvivorCount !== null && state.lastSurvivorCount <= 1);
+        if (isTerminal && !wasTerminal) {
+          enqueue("game_finished", { arenaId: snapshot.arenaId, roundNumber: snapshot.currentRound, survivorCount: snapshot.survivorCount, status: snapshot.status });
+        }
+        for (const item of pending) {
+          for (const sub of state.subscribers) {
+            try { sub.sendEvent(item.event, item.payload, item.payload.sequence); } catch { /* disconnected */ }
           }
         }
 

@@ -12,6 +12,11 @@ export class PayoutsController {
     private readonly transactions: TransactionRepository
   ) {}
 
+  getClaimReadiness = async (req: Request, res: Response): Promise<void> => {
+    const result = await this.paymentService.getClaimReadiness(req.params.arenaId!);
+    res.json(result);
+  };
+
   createPayout = async (req: Request, res: Response): Promise<void> => {
     // Admin API-key requests stamp the key identity; user JWT requests are
     // blocked upstream by the admin gate but stay supported for defense in depth.

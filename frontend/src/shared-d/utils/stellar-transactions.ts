@@ -13,8 +13,6 @@ import {
   StellarContractIdSchema,
   StellarPublicKeySchema,
 } from "@/shared-d/utils/security-validation";
-import {
-} from "@/components/hook-d/arenaConstants";
 import { STELLAR_PLACEHOLDERS, stellarConfig } from "@/lib/stellarConfig";
 
 // Re-export for use in components
@@ -55,7 +53,6 @@ import {
   parseUserStateFromScVal,
   buildArenaDisplayState,
 } from "@/shared-d/utils/contract-state-parsers";
-import { stroopsToDisplayAmount } from "@/shared-d/utils/stellar-scval-extract";
 import {
   clearCommitment,
   computeCommitment,

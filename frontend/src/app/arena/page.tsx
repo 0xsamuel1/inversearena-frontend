@@ -70,6 +70,7 @@ function ArenaGameView() {
   const [selectedChoice, setSelectedChoice] = useState<"heads" | "tails" | null>(null);
   const [isJoined, setIsJoined] = useState(false);
   const [hasWon, setHasWon] = useState(false);
+  const [claimReady, setClaimReady] = useState(false);
   const [showEliminationSummary, setShowEliminationSummary] = useState(false);
   const [survivors, setSurvivors] = useState({ current: 128, max: 1024 });
   const [userStatus, setUserStatus] = useState("STILL IN");
@@ -173,6 +174,12 @@ function ArenaGameView() {
       setSurvivors({ current: state.survivorsCount, max: state.maxCapacity });
       setIsJoined(state.isUserIn);
       setHasWon(state.hasWon);
+      if (state.hasWon) {
+        const readinessResponse = await fetch(`/api/payouts/claim-readiness/${encodeURIComponent(ARENA_ID)}`);
+        setClaimReady(readinessResponse.ok && ((await readinessResponse.json()) as { ready: boolean }).ready);
+      } else {
+        setClaimReady(false);
+      }
       setUserStatus(state.hasWon ? "WINNER!" : "STILL IN");
       setCurrentStake(state.currentStake);
       setPotentialPayout(state.potentialPayout);
@@ -466,7 +473,7 @@ function ArenaGameView() {
                   <span>CURRENT STAKE</span>
                   <span className="font-bold">${currentStake.toLocaleString()}</span>
                 </div>
-                {hasWon ? (
+                {hasWon && claimReady ? (
                   <button
                     onClick={() => {
                       if (!ARENA_ID) return;

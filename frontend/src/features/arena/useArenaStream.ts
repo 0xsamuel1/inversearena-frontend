@@ -129,6 +129,7 @@ export function useArenaStream(arenaId: string): UseArenaStreamReturn {
   // this doesn't call an impure function during render.
   const lastMessageAtRef = useRef(0);
   const watchdogRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cursorRef = useRef(0);
 
   useEffect(() => {
     if (!arenaId) {
@@ -192,6 +193,8 @@ export function useArenaStream(arenaId: string): UseArenaStreamReturn {
         // Schema validation failure; similar to JSON parse error, stay connected.
         return;
       }
+      if (!Number.isSafeInteger(parsed.sequence) || parsed.sequence <= cursorRef.current) return;
+      cursorRef.current = parsed.sequence;
 
       try {
         setLatestEvent(parsed);
@@ -290,7 +293,7 @@ export function useArenaStream(arenaId: string): UseArenaStreamReturn {
       lastMessageAtRef.current = Date.now();
 
       try {
-        const source = new EventSource(`/api/arenas/${arenaId}/stream`);
+        const source = new EventSource(`/api/arenas/${arenaId}/stream${cursorRef.current > 0 ? `?cursor=${cursorRef.current}` : ""}`);
         sourceRef.current = source;
 
         source.onopen = () => {

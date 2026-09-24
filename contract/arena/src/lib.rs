@@ -799,7 +799,10 @@ impl ArenaContract {
         // INTERACTIONS — external calls happen only after state is committed.
         let arena_addr = env.current_contract_address();
         let rwa_client = RwaAdapterClient::new(&env, &config.yield_vault);
-        let principal = config.entry_fee * i128::from(config.player_count);
+        let principal = config
+            .entry_fee
+            .checked_mul(i128::from(config.player_count))
+            .ok_or(ArenaError::ArithmeticOverflow)?;
         let payout = principal.saturating_add(Self::total_yield(&env));
         let withdrawn = rwa_client
             .try_withdraw_all(&arena_addr)

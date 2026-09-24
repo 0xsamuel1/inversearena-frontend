@@ -6,6 +6,7 @@ import { TransactionIdParamSchema } from "../validation/requestValidation";
 export function createTransactionsRouter(controller: TransactionsController): Router {
   const router = Router();
 
+  router.get("/:id/timeline", validateParams(TransactionIdParamSchema), asyncHandler(controller.getTimeline));
   router.get("/:id", validateParams(TransactionIdParamSchema), asyncHandler(controller.getById));
 
   return router;

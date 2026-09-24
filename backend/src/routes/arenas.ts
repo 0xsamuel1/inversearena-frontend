@@ -355,14 +355,16 @@ export function createArenasRouter(authMiddleware: RequestHandler): Router {
       res.setHeader("X-Accel-Buffering", "no");
       res.flushHeaders?.();
 
-      const sendEvent = (event: string, payload: unknown): void => {
+      const sendEvent = (event: string, payload: unknown, sequence?: number): void => {
         if (res.writableEnded) return;
+        if (sequence !== undefined) res.write(`id: ${sequence}\n`);
         res.write(`event: ${event}\n`);
         res.write(`data: ${JSON.stringify(payload)}\n\n`);
       };
 
-      const sendSnapshot = (data: unknown): void => {
+      const sendSnapshot = (data: unknown, sequence?: number): void => {
         if (res.writableEnded) return;
+        if (sequence !== undefined) res.write(`id: ${sequence}\n`);
         res.write(`event: snapshot\n`);
         res.write(`data: ${JSON.stringify(data)}\n\n`);
       };
@@ -371,6 +373,12 @@ export function createArenasRouter(authMiddleware: RequestHandler): Router {
         id,
         { sendEvent, sendSnapshot },
         arenaService,
+        (() => {
+          const raw = req.get("Last-Event-ID") ?? (typeof req.query.cursor === "string" ? req.query.cursor : undefined);
+          if (raw === undefined) return undefined;
+          const cursor = Number(raw);
+          return Number.isSafeInteger(cursor) && cursor >= 0 ? cursor : undefined;
+        })(),
       );
 
       req.on("close", unsubscribe);

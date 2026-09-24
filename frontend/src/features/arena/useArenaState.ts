@@ -16,6 +16,7 @@ export interface ArenaState {
   hasWon: boolean;
   currentStake: number;
   potentialPayout: number;
+  claimReady: boolean;
   entryFee: number;
   playerCount: number;
 }
@@ -61,6 +62,7 @@ export function toArenaState(data: ArenaStateResponse): ArenaState {
     hasWon: data.hasWon,
     currentStake: data.currentStake,
     potentialPayout: data.potentialPayout,
+    claimReady: false,
     entryFee: data.entryFee ?? 0,
     playerCount: data.playerCount,
   };
@@ -117,7 +119,20 @@ export function useArenaState(arenaId: string): UseArenaStateReturn {
 
         if (!isMounted.current) return;
 
-        const nextState = applyChainState(data);
+        const nextState = toArenaState(data);
+        if (nextState.hasWon) {
+          try {
+            const response = await fetch(`/api/payouts/claim-readiness/${encodeURIComponent(arenaId)}`);
+            if (response.ok) nextState.claimReady = ((await response.json()) as { ready: boolean }).ready;
+          } catch {
+            nextState.claimReady = false;
+          }
+        }
+        if (!isMounted.current) return;
+        setState(nextState);
+        setLastSyncedAt(Date.now());
+        errorCount.current = 0;
+        setHealth("connected");
 
         // Slow down when game is finished
         const interval = nextState.state === "finished" ? 30_000 : 5_000;

@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   confirmed_at TIMESTAMPTZ,
+  replaces_transaction_id UUID REFERENCES transactions(id),
+  replaced_by_transaction_id UUID REFERENCES transactions(id),
   CONSTRAINT chk_transactions_status CHECK (
     status IN ('built', 'queued', 'awaiting_signature', 'submitted', 'confirmed', 'failed', 'dead')
   ),

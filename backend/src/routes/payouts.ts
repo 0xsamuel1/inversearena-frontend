@@ -16,6 +16,7 @@ export function createPayoutsRouter(
 
   router.use(auditLogMiddleware());
 
+  router.get("/claim-readiness/:arenaId", requireAuth(authService), asyncHandler(controller.getClaimReadiness));
   // Payout lifecycle is admin-only: creation, signing and submission move funds.
   router.post("/", adminAuthMiddleware, asyncHandler(controller.createPayout));
   router.get("/:id", requireAuth(authService), validateParams(TransactionIdParamSchema), asyncHandler(controller.getPayout));

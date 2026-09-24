@@ -15,6 +15,7 @@ import { rpc } from "@stellar/stellar-sdk";
 const { Api, Server } = rpc;
 import { z } from "zod";
 
+import { getOnChainGameState } from "./onChainReader";
 import { getPaymentConfig, type PaymentConfig } from "../config/paymentConfig";
 import type { TransactionRepository } from "../repositories/transactionRepository";
 import { payoutsSuccessTotal } from "../utils/metrics";
@@ -127,6 +128,23 @@ export class PaymentService {
     this.config = options.config ?? getPaymentConfig();
     this.rpcServer = options.rpcServer ?? new Server(this.config.sorobanRpcUrl);
     this.breaker = options.circuitBreaker ?? getSorobanBreaker();
+  }
+
+  async getClaimReadiness(arenaId: string): Promise<{ version: 1; arenaId: string; ready: boolean; chainState: string; payoutStatus: string | null; reason: string }> {
+    const startedAt = Date.now();
+    if (!/^C[A-Z2-7]{55}$/ .test(arenaId)) throw new Error("Invalid arena contract id");
+    try {
+      const [chainState, records] = await Promise.all([getOnChainGameState(arenaId), this.transactions.listByStatus(["built", "queued", "awaiting_signature", "submitted", "confirmed", "failed", "dead"], 1000)]);
+      const payout = records.filter((record) => record.payoutId === arenaId).sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
+      const payoutBlocksClaim = payout?.status === "submitted" || payout?.status === "confirmed";
+      const ready = chainState === "Finished" && !payoutBlocksClaim;
+      const reason = chainState !== "Finished" ? "contract_not_finished" : payoutBlocksClaim ? "payout_already_in_progress_or_complete" : "ready";
+      console.info(JSON.stringify({ event: "claim_readiness_success", arenaId, ready, latencyMs: Date.now() - startedAt }));
+      return { version: 1, arenaId, ready, chainState, payoutStatus: payout?.status ?? null, reason };
+    } catch (error) {
+      console.error(JSON.stringify({ event: "claim_readiness_failure", arenaId, latencyMs: Date.now() - startedAt, error: error instanceof Error ? error.message : "unknown" }));
+      throw error;
+    }
   }
 
   getSorobanBreakerStats() {
@@ -475,9 +493,12 @@ export class PaymentService {
     const contract = new Contract(this.config.payoutContractId);
     const amountStroops = toStroops(request.amount);
 
-    // distribute_winnings(payout_id: u64, winner: Address, amount: i128)
-    // The payout token and nonce are fixed at contract init time — the nonce
-    // here doubles as the on-chain payout_id for idempotency.
+    // Must match contract/payout/src/lib.rs distribute_winnings(payout_id: u64,
+    // winner: Address, amount: i128) exactly — 3 args, this order. The token is
+    // fixed by the contract at initialize time (no per-call asset argument),
+    // and the contract has no nonce param, so the reserved per-source `nonce`
+    // doubles as the on-chain idempotency key (`payout_id`). Our string
+    // `request.payoutId` stays an off-chain-only identifier.
     const operation = contract.call(
       this.config.payoutMethodName,
       nativeToScVal(BigInt(nonce), { type: "u64" }),
