@@ -221,6 +221,17 @@ export interface OnChainArenaSnapshot {
   yieldAccrued: number;
 }
 
+export interface BatchedOnChainArenaSnapshot extends OnChainArenaSnapshot { arenaId: string }
+
+/** Reads all arenas against one ledger snapshot, preventing mixed-ledger hydration. */
+export async function getOnChainSnapshots(contractIds: readonly string[], vaultContractId: string): Promise<{ ledgerSequence: number; snapshots: BatchedOnChainArenaSnapshot[] }> {
+  if (contractIds.length === 0) return { ledgerSequence: 0, snapshots: [] };
+  const gateway = new StellarRpcGateway();
+  const ledgerSequence = await gateway.getLatestLedger();
+  const snapshots = await Promise.all(contractIds.map(async (arenaId) => ({ arenaId, ...(await getOnChainSnapshotOrThrow(arenaId, vaultContractId)) })));
+  return { ledgerSequence, snapshots };
+}
+
 /**
  * Read player count, game state, and total yield for an arena in one
  * all-or-nothing attempt (#1408).
