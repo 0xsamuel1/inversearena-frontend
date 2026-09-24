@@ -2,6 +2,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal } from '../ui/Modal';
 
+interface StakeLimitInfo {
+  currentActiveStake: number;
+  limit: number;
+  remainingCapacity: number;
+  limitExceeded: boolean;
+}
+
 interface JoinArenaModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -96,6 +103,8 @@ const JoinArenaModal: React.FC<JoinArenaModalProps> = ({
       }
     }
   };
+
+  const canConfirm = isChecked && !isLoading && !wouldExceedLimit && !stakeLimitLoading;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
