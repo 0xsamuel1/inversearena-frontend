@@ -97,6 +97,20 @@ export const sorobanCircuitTransitionsTotal = new Counter({
   registers: [register],
 });
 
+export const maintenanceMutationsBlockedTotal = new Counter({
+  name: 'inversearena_maintenance_mutations_blocked_total',
+  help: 'Total mutating requests rejected because a maintenance window was active',
+  labelNames: ['method'],
+  registers: [register],
+});
+
+export const maintenanceWindowsScheduledTotal = new Counter({
+  name: 'inversearena_maintenance_windows_scheduled_total',
+  help: 'Total maintenance windows scheduled, by outcome',
+  labelNames: ['status'],
+  registers: [register],
+});
+
 export async function refreshArenaMetrics(prisma: PrismaClient): Promise<void> {
   const activeRounds = await prisma.round.findMany({
     where: {
